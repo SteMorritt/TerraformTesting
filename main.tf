@@ -2,8 +2,14 @@ provider "aws" {
         region = "eu-west-2"
 }
 
+variable "cidraddresses" {
+    description = "List containing CIDR addresses for firewall rules"
+    type = list(string)
+    default = ["143.159.210.117/32","213.143.146.149/32"]
+}
+
 resource "aws_instance" "example" {
-    ami = "ami-0fb67ddcbc7557b6e"
+    ami = "ami-07c1b39b7b3d2525d"
     instance_type = "t2.micro"
     user_data =  <<-EOF
                 #!/bin/bash
@@ -12,7 +18,7 @@ resource "aws_instance" "example" {
                 EOF
     user_data_replace_on_change = true
     key_name = var.key_pair_name
-    vpc_security_group_ids = [aws_security_group.web8080.id, aws_security_group.ssh.id]
+    vpc_security_group_ids = [aws_security_group.web8080.id, aws_security_group.ssh.id, aws_security_group.defaultOUT.id]
     tags = {
             Name = "terraform-example1"
     }
@@ -21,11 +27,13 @@ resource "aws_instance" "example" {
 variable "key_pair_name"{
         description = "key_pair_name"
         type = string
+        default = "testpair1"
 }
 
 variable "file_name" {
-    description = "Nme of key pair"
+    description = "Name of key pair"
     type = string
+    default="testpair"
 }
 
 resource "tls_private_key" "pk"{
@@ -51,7 +59,19 @@ resource "aws_security_group" "ssh" {
         from_port = 22
         to_port = 22
         protocol = "tcp"
-        cidr_blocks = ["143.159.210.117/32"]
+        cidr_blocks = var.cidraddresses
+    }
+}
+
+resource "aws_security_group" "defaultOUT"{
+    name = "terraform-example1-defaultOUT"
+
+    egress {
+        from_port = 0
+        to_port = 0
+        protocol = "-1"
+        cidr_blocks = ["0.0.0.0/0"]
+
     }
 }
 
@@ -62,6 +82,6 @@ resource "aws_security_group" "web8080" {
         from_port = 8080
         to_port = 8080
         protocol = "tcp"
-        cidr_blocks = ["143.159.210.117/32"]
+        cidr_blocks = var.cidraddresses
     }
 }
