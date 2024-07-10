@@ -8,19 +8,104 @@ variable "cidraddresses" {
     default = ["143.159.210.117/32","213.143.146.149/32"]
 }
 
-resource "aws_instance" "example" {
-    ami = "ami-07c1b39b7b3d2525d"
+data "aws_vpc" "default" {
+    default = true
+}
+
+data "aws_subnets" "default"{
+    filter {    
+        name = "vpc-id"
+        values = [data.aws_vpc.default.id]
+    }
+}
+
+resource "aws_launch_configuration" "example" {
+    image_id = "ami-07c1b39b7b3d2525d"
     instance_type = "t2.micro"
+    security_groups = [aws_security_group.web8080.id]
     user_data =  <<-EOF
                 #!/bin/bash
                 echo "Hello, Cruel World" > index.html
                 nohup busybox httpd -f -p 8080 &
                 EOF
-    user_data_replace_on_change = true
+    #user_data_replace_on_change = true
     key_name = var.key_pair_name
-    vpc_security_group_ids = [aws_security_group.web8080.id, aws_security_group.ssh.id, aws_security_group.defaultOUT.id]
-    tags = {
-            Name = "terraform-example1"
+    #vpc_security_group_ids = [aws_security_group.web8080.id, aws_security_group.ssh.id, aws_security_group.defaultOUT.id]
+    #tags = {
+    #        Name = "terraform-example1"
+    #}
+    lifecycle {
+      create_before_destroy = true
+    }
+}
+
+resource "aws_autoscaling_group" "example" {
+    launch_configuration = aws_launch_configuration.example.name
+    min_size = 2
+    max_size = 10
+    tag { 
+        key = "Name"
+        value = "terraform-asg-example"
+        propagate_at_launch = true
+
+    }
+    vpc_zone_identifier = data.aws_subnets.default.ids
+    
+    target_group_arns = [aws_lb_target_group.asg.arn]
+    health_check_type = "ELB"
+    
+}
+
+resource "aws_lb_listener_rule" "asg"{
+    listener_arn = aws_lb_listener.http.arn
+    priority = 100
+    condition {
+      path_pattern {
+        values = ["*"]
+      }
+    }
+    action {
+      type = "forward"
+      target_group_arn = aws_lb_target_group.asg.arn
+    }
+}
+
+resource "aws_lb" "example" {
+    name = "terraform-asg-example"
+    load_balancer_type = "application"
+    subnets = data.aws_subnets.default.ids
+
+    security_groups = [aws_security_group.defaultOUT.id,aws_security_group.web80.id]
+}
+
+resource "aws_lb_listener" "http" {
+    load_balancer_arn = aws_lb.example.arn
+    port = 80
+    protocol = "HTTP"
+    default_action{
+        type= "fixed-response"
+        fixed_response {
+          content_type = "text/plain"
+          message_body = "404: Page Not Found"
+          status_code = 404
+        }
+    }
+}
+
+resource "aws_lb_target_group" "asg"{
+    name = "terraform-asg-example"
+    port = "8080"
+    protocol = "HTTP"
+    vpc_id = data.aws_vpc.default.id
+
+    health_check {
+      path ="/"
+      protocol = "HTTP"
+      matcher = 200
+      interval = 15
+      timeout = 3
+      healthy_threshold = 2
+      unhealthy_threshold = 2
     }
 }
 
@@ -82,6 +167,22 @@ resource "aws_security_group" "web8080" {
         from_port = 8080
         to_port = 8080
         protocol = "tcp"
+        cidr_blocks = ["0.0.0.0/0"]
+    }
+}
+
+resource "aws_security_group" "web80" {
+    name = "terraform-example1-80"
+
+    ingress {
+        from_port = 80
+        to_port = 80
+        protocol = "tcp"
         cidr_blocks = var.cidraddresses
     }
+}
+
+output "alb_dns_name"{
+    value = aws_lb.example.dns_name
+    description = "The domain name of the load balancer"
 }
