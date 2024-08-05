@@ -2,8 +2,9 @@ provider "aws" {
     region = "eu-west-2"
 }
 
+
 resource "aws_s3_bucket" "terraform_state"{
-    bucket = "terraform-up-and-running-state"
+    bucket = "morritts-terraform-up-and-running-state"
     lifecycle {
         prevent_destroy=true        
     }
