@@ -2,8 +2,6 @@ provider "aws" {
         region = "eu-west-2"
 }
 
-t
-
 terraform {
     backend "s3" {
         bucket = "morritts-terraform-up-and-running-state"
