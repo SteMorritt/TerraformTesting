@@ -1,0 +1,43 @@
+name: Deploy Terraform
+
+on:
+  push:
+    branches:
+      - deploy
+    paths:
+      - infrastructure/terraform/**
+
+  pull_request:
+    branches:
+      - deploy
+    paths:
+      - infrastructure/terraform/**
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  #some stuff
+
+jobs:
+  terrarform:
+    name: Terraform
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./infrastructure/terraform
+    environment: deploy
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: AWS Login
+        uses:
+
+      
