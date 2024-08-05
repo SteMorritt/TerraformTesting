@@ -4,3 +4,4 @@
 testpair
 testkey.ppk
 .env
+*.lock.hcl
